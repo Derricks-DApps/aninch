@@ -5,7 +5,8 @@ agent = Agent(
     name="Derrick",
     seed="secret_seed_phrase",
     port=8000,
-    endpoint=["http://localhost:8000/submit"]
+    endpoint=["http://localhost:8000/submit"],
+    mailbox=True,
 )
 
 # startup handler
