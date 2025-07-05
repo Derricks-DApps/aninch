@@ -4,8 +4,7 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-
-[dev-packages]
+uagents = "*"
 
 [requires]
 python_version = "3.13"
