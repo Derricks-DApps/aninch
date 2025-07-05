@@ -3,8 +3,9 @@ from uagents import Agent, Context
 # instantiate agent
 agent = Agent(
     name="Derrick",
-    seed="secret_seed_phrase",
+    seed="secret_seed_phrase123123",
     port=8000,
+    publish_agent_details=True
     endpoint=["http://localhost:8000/submit"],
     mailbox=True,
 )
