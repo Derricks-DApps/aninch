@@ -3,6 +3,7 @@
 # Import required modules
 from datetime import datetime
 from uuid import uuid4
+from llm import get_completion
 from uagents import Agent, Protocol, Context
 from uagents_core.contrib.protocols.chat import (
     ChatAcknowledgement,
@@ -49,18 +50,30 @@ async def handle_message(ctx: Context, sender: str, msg: ChatMessage):
                         token_name_map = {
                             '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48': 'USDC',
                             '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee': 'ETH',
+                            'eth': 'ETH',
                             # Add more mappings here as needed
                         }
                         # Prepare original output, replacing mapped tokens
+                        # Format balances with commas and up to 6 decimals for tokens
+                        def format_balance(val):
+                            try:
+                                val_f = float(val)
+                                if val_f == int(val_f):
+                                    return f"{int(val_f):,}"
+                                return f"{val_f:,.6f}".rstrip('0').rstrip('.')
+                            except Exception:
+                                return str(val)
+
                         original_lines = [
-                            f"\n{token_name_map.get(token.upper() if token == 'ETH' else token.lower(), token)}: {balance}\n"
+                            f"{token_name_map.get(token.lower(), token)}: {format_balance(balance)}"
                             for token, balance in nonzero.items()
                         ]
                         # Fetch USD prices
                         import requests
                         token_addresses = list(nonzero.keys())
+                        # Treat both 'ETH' and '0xeeee...eeee' as ETH for price lookup
                         contract_addresses = ','.join([
-                            addr.lower() for addr in token_addresses if addr != 'ETH'
+                            addr.lower() for addr in token_addresses if addr.lower() not in ['eth', '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee']
                         ])
                         price_map = {}
                         if contract_addresses:
@@ -75,25 +88,24 @@ async def handle_message(ctx: Context, sender: str, msg: ChatMessage):
                         usd_lines = []
                         for token, balance in nonzero.items():
                             usd_value = None
-                            if token == 'ETH':
-                                token_label = token_name_map.get('ETH', token)
-                            else:
-                                token_label = token_name_map.get(token.lower(), token)
-                            if token == 'ETH' and eth_price:
+                            token_lc = token.lower()
+                            token_label = token_name_map.get(token_lc, token)
+                            # ETH handling: both 'ETH' and '0xeeee...eeee'
+                            if token_lc in ['eth', '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'] and eth_price:
                                 try:
                                     usd_value = float(balance) * float(eth_price)
                                 except Exception:
                                     usd_value = None
-                            elif token.lower() in price_map:
+                            elif token_lc in price_map:
                                 try:
-                                    usd_value = float(balance) * float(price_map[token.lower()]['usd'])
+                                    usd_value = float(balance) * float(price_map[token_lc]['usd'])
                                 except Exception:
                                     usd_value = None
                             if usd_value is not None:
-                                usd_lines.append(f"{token_label} (USD): ~${usd_value:,.2f}")
+                                usd_lines.append(f"{token_label} (USD): ${usd_value:,.2f}")
                             else:
                                 usd_lines.append(f"{token_label} (USD): N/A")
-                        balance_str = "\n" + '\n'.join(original_lines) + '\n' + '\n'.join(usd_lines)
+                        balance_str = '\n'.join(original_lines) + '\n' + '\n'.join(usd_lines)
                     else:
                         balance_str = "No non-zero token balances found."
                 else:
@@ -115,6 +127,15 @@ async def handle_message(ctx: Context, sender: str, msg: ChatMessage):
                 content=[TextContent(type="text", text=f"Your Token balances: \n{balance_str}")]
             )
             await ctx.send(sender, response)
+
+async def send_message(ctx: Context, sender, msg: ChatMessage):
+    completion = await get_completion(context="", prompt=msg.content[0].text)
+ 
+    await ctx.send(sender, ChatMessage(
+        timestamp=datetime.now(),
+        msg_id=uuid4(),
+        content=[TextContent(type="text", text=completion["choices"][0]["message"]["content"])],
+    ))
 
 # Acknowledgement Handler - Process received acknowledgements
 @chat_proto.on_message(ChatAcknowledgement)
