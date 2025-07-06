@@ -14,7 +14,7 @@ from uagents_core.contrib.protocols.chat import (
 from balance_checker import get_token_balances
 # Initialise agent
 agent = Agent(
-    name="Derrick",
+    name="AnInch",
     seed="secret_seed_phrase123123",
     publish_agent_details=True,
     mailbox=True,
