@@ -1,16 +1,17 @@
 
 
+# Import required modules
 from datetime import datetime
 from uuid import uuid4
 from uagents import Agent, Protocol, Context
-
-#import the necessary components from the chat protocol
 from uagents_core.contrib.protocols.chat import (
     ChatAcknowledgement,
     ChatMessage,
     TextContent,
     chat_protocol_spec,
 )
+# Import get_token_balances from token_balance_checker
+from balance_checker import get_token_balances
 # Initialise agent
 agent = Agent(
     name="Derrick",
@@ -34,21 +35,36 @@ async def startup_handler(ctx: Context):
 async def handle_message(ctx: Context, sender: str, msg: ChatMessage):
     for item in msg.content:
         if isinstance(item, TextContent):
-            # Log received message
             ctx.logger.info(f"Received message from {sender}: {item.text}")
-            
+            # Try to extract an Ethereum address from the message text
+            address = item.text.strip()
+            # Optionally, add validation for Ethereum address format
+            try:
+                balances = get_token_balances(address)
+                if balances:
+                    # Show only non-zero balances
+                    nonzero = {k: v for k, v in balances.items() if str(v) != '0'}
+                    if nonzero:
+                        balance_str = '\n'.join([f"{token}: {balance}" for token, balance in nonzero.items()])
+                    else:
+                        balance_str = "No non-zero token balances found."
+                else:
+                    balance_str = "Could not fetch balances."
+            except Exception as e:
+                balance_str = f"Error fetching balance: {e}"
+
             # Send acknowledgment
             ack = ChatAcknowledgement(
                 timestamp=datetime.utcnow(),
                 acknowledged_msg_id=msg.msg_id
             )
             await ctx.send(sender, ack)
-            
-            # Send response message
+
+            # Send response message with balance info
             response = ChatMessage(
                 timestamp=datetime.utcnow(),
                 msg_id=uuid4(),
-                content=[TextContent(type="text", text="Hello from Derrick")]
+                content=[TextContent(type="text", text=f"Your balances: \n{balance_str}")]
             )
             await ctx.send(sender, response)
 
