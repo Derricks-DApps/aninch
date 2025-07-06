@@ -45,7 +45,55 @@ async def handle_message(ctx: Context, sender: str, msg: ChatMessage):
                     # Show only non-zero balances
                     nonzero = {k: v for k, v in balances.items() if str(v) != '0'}
                     if nonzero:
-                        balance_str = '\n'.join([f"{token}: {balance}" for token, balance in nonzero.items()])
+                        # Hardcoded mapping for known tokens
+                        token_name_map = {
+                            '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48': 'USDC',
+                            '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee': 'ETH',
+                            # Add more mappings here as needed
+                        }
+                        # Prepare original output, replacing mapped tokens
+                        original_lines = [
+                            f"\n{token_name_map.get(token.upper() if token == 'ETH' else token.lower(), token)}: {balance}\n"
+                            for token, balance in nonzero.items()
+                        ]
+                        # Fetch USD prices
+                        import requests
+                        token_addresses = list(nonzero.keys())
+                        contract_addresses = ','.join([
+                            addr.lower() for addr in token_addresses if addr != 'ETH'
+                        ])
+                        price_map = {}
+                        if contract_addresses:
+                            price_url = f'https://api.coingecko.com/api/v3/simple/token_price/ethereum?contract_addresses={contract_addresses}&vs_currencies=usd'
+                            price_resp = requests.get(price_url)
+                            if price_resp.status_code == 200:
+                                price_map = price_resp.json()
+                        eth_price = None
+                        eth_resp = requests.get('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd')
+                        if eth_resp.status_code == 200:
+                            eth_price = eth_resp.json().get('ethereum', {}).get('usd')
+                        usd_lines = []
+                        for token, balance in nonzero.items():
+                            usd_value = None
+                            if token == 'ETH':
+                                token_label = token_name_map.get('ETH', token)
+                            else:
+                                token_label = token_name_map.get(token.lower(), token)
+                            if token == 'ETH' and eth_price:
+                                try:
+                                    usd_value = float(balance) * float(eth_price)
+                                except Exception:
+                                    usd_value = None
+                            elif token.lower() in price_map:
+                                try:
+                                    usd_value = float(balance) * float(price_map[token.lower()]['usd'])
+                                except Exception:
+                                    usd_value = None
+                            if usd_value is not None:
+                                usd_lines.append(f"{token_label} (USD): ~${usd_value:,.2f}")
+                            else:
+                                usd_lines.append(f"{token_label} (USD): N/A")
+                        balance_str = "\n" + '\n'.join(original_lines) + '\n' + '\n'.join(usd_lines)
                     else:
                         balance_str = "No non-zero token balances found."
                 else:
@@ -64,7 +112,7 @@ async def handle_message(ctx: Context, sender: str, msg: ChatMessage):
             response = ChatMessage(
                 timestamp=datetime.utcnow(),
                 msg_id=uuid4(),
-                content=[TextContent(type="text", text=f"Your balances: \n{balance_str}")]
+                content=[TextContent(type="text", text=f"Your Token balances: \n{balance_str}")]
             )
             await ctx.send(sender, response)
 
