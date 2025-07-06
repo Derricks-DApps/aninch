@@ -21,24 +21,9 @@ def main():
 
     if token_balances:
         print(f"Token balances for wallet address {wallet_address}:")
-        # Fetch token metadata from 1inch token list
-        token_list_endpoint = 'https://api.1inch.dev/token/v1.2/1'
-        api_key = os.getenv('INCH_API_KEY')
-        token_list_resp = requests.get(token_list_endpoint, headers={'Authorization': f'Bearer {api_key}'})
-        token_metadata = {}
-        if token_list_resp.status_code == 200:
-            token_metadata = token_list_resp.json().get('tokens', {})
-        else:
-            print("Warning: Could not fetch token metadata. Showing addresses only.")
-
         for token, balance in token_balances.items():
             if str(balance) != '0':
-                name = token_metadata.get(token, {}).get('name', token)
-                symbol = token_metadata.get(token, {}).get('symbol', '')
-                if symbol:
-                    print(f"{name} ({symbol}): {balance}")
-                else:
-                    print(f"{name}: {balance}")
+                print(f"{token}: {balance}")
     else:
         print("Token balance fetch failed. Please check your wallet address.")
 
